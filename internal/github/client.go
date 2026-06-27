@@ -1,4 +1,4 @@
-package main
+package github
 
 import (
 	"encoding/json"
@@ -7,24 +7,24 @@ import (
 	"net/url"
 )
 
-type githubClient struct {
+type Client struct {
 	token string
 	http  *http.Client
 }
 
-func newGitHubClient(token string) *githubClient {
-	return &githubClient{token: token, http: http.DefaultClient}
+func New(token string) *Client {
+	return &Client{token: token, http: http.DefaultClient}
 }
 
-func (c *githubClient) fetchContributions(username string) json.RawMessage {
+func (c *Client) FetchContributions(username string) json.RawMessage {
 	profile := c.get("https://api.github.com/users/" + url.PathEscape(username))
 	repos := c.get("https://api.github.com/users/" + url.PathEscape(username) + "/repos?sort=updated&per_page=5")
 	prs := c.get("https://api.github.com/search/issues?q=" + url.QueryEscape("author:"+username+" type:pr") + "&sort=updated&per_page=10")
 	events := c.get("https://api.github.com/users/" + url.PathEscape(username) + "/events/public?per_page=10")
 
 	result := map[string]json.RawMessage{
-		"profile": profile,
-		"repos":   repos,
+		"profile":       profile,
+		"repos":         repos,
 		"pull_requests": prs,
 		"recent_events": events,
 		"summary":       buildSummary(profile, prs, repos),
@@ -33,7 +33,7 @@ func (c *githubClient) fetchContributions(username string) json.RawMessage {
 	return data
 }
 
-func (c *githubClient) get(rawURL string) json.RawMessage {
+func (c *Client) get(rawURL string) json.RawMessage {
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return json.RawMessage(`{"error":"request failed"}`)
@@ -64,8 +64,8 @@ func buildSummary(profile, prs, repos json.RawMessage) json.RawMessage {
 		"total_prs":    0,
 	}
 	var p struct {
-		PublicRepos int `json:"public_repos"`
-		Followers   int `json:"followers"`
+		PublicRepos int    `json:"public_repos"`
+		Followers   int    `json:"followers"`
 		Login       string `json:"login"`
 	}
 	if json.Unmarshal(profile, &p) == nil {
