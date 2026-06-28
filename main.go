@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,16 +21,20 @@ func main() {
 	cfg := config.Load()
 	observability.InitSentry("mentors")
 	defer observability.FlushSentry(2 * time.Second)
+	logger := observability.InitLogger("mentors")
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("database connection failed", "err", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
+	logger.Info("database connected")
 
 	pub := events.New(cfg.KafkaBrokers)
 	defer pub.Close()
+	logger.Info("kafka publisher ready", "brokers", cfg.KafkaBrokers)
 
 	h := &handler.Handler{
 		Store:  store.New(pool),
@@ -41,9 +45,11 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(middleware.Recoverer)
+	r.Use(observability.SentryHTTPMiddleware)
 	r.Use(observability.SentryRecoverMiddleware("mentors"))
 	r.Use(observability.SentryErrorMiddleware("mentors"))
-	r.Use(middleware.Recoverer)
+	r.Use(observability.RequestLogMiddleware("mentors"))
 	r.Use(observability.PrometheusMiddleware("mentors"))
 
 	r.Get("/health", observability.HealthHandler("mentors"))
@@ -53,6 +59,9 @@ func main() {
 	r.Get("/admin/applications", h.ListApplications)
 	r.Patch("/admin/applications/{id}", h.ReviewApplication)
 
-	log.Printf("mentors listening on :%s", cfg.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, r))
+	logger.Info("mentors listening", "port", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
+		logger.Error("server failed", "err", err)
+		os.Exit(1)
+	}
 }

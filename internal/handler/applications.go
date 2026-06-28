@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -40,9 +41,11 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	githubData := h.Github.FetchContributions(githubUser)
 	app, err := h.Store.CreateApplication(r.Context(), userID, githubData)
 	if err != nil {
+		slog.InfoContext(r.Context(), "mentor apply conflict", "user_id", userID)
 		http.Error(w, `{"error":"application already exists"}`, http.StatusConflict)
 		return
 	}
+	slog.InfoContext(r.Context(), "mentor application submitted", "user_id", userID, "github", githubUser, "application_id", app.ID)
 	WriteJSON(w, http.StatusCreated, app)
 }
 
@@ -84,7 +87,10 @@ func (h *Handler) ReviewApplication(w http.ResponseWriter, r *http.Request) {
 	if req.Status == "approved" {
 		_ = h.Store.PromoteToMentor(r.Context(), userID)
 		email, _ := h.Store.GetUserEmail(r.Context(), userID)
-		_ = h.Events.PublishApproved(r.Context(), userID, email)
+		if err := h.Events.PublishApproved(r.Context(), userID, email); err != nil {
+			slog.WarnContext(r.Context(), "mentor approved event failed", "user_id", userID, "err", err)
+		}
 	}
+	slog.InfoContext(r.Context(), "mentor application reviewed", "application_id", id, "status", req.Status, "admin_id", adminID)
 	WriteJSON(w, http.StatusOK, map[string]string{"status": req.Status})
 }
