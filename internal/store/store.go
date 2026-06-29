@@ -39,13 +39,16 @@ func (s *Store) CreateApplication(ctx context.Context, userID string, githubData
 }
 
 func (s *Store) ListApplications(ctx context.Context, status string) ([]model.Application, error) {
-	q := `SELECT id, user_id, status, github_data, created_at FROM mentor_applications`
+	q := `SELECT a.id, a.user_id, a.status, a.github_data, a.created_at,
+		COALESCE(u.email, ''), COALESCE(u.display_name, ''), COALESCE(u.github_username, '')
+		FROM mentor_applications a
+		JOIN users u ON u.id = a.user_id`
 	args := []interface{}{}
 	if status != "" {
-		q += ` WHERE status=$1`
+		q += ` WHERE a.status=$1`
 		args = append(args, status)
 	}
-	q += ` ORDER BY created_at DESC`
+	q += ` ORDER BY a.created_at DESC`
 
 	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
@@ -57,7 +60,10 @@ func (s *Store) ListApplications(ctx context.Context, status string) ([]model.Ap
 	for rows.Next() {
 		var a model.Application
 		var createdAt interface{}
-		if err := rows.Scan(&a.ID, &a.UserID, &a.Status, &a.GithubData, &createdAt); err != nil {
+		if err := rows.Scan(
+			&a.ID, &a.UserID, &a.Status, &a.GithubData, &createdAt,
+			&a.ApplicantEmail, &a.ApplicantDisplayName, &a.ApplicantGithubUsername,
+		); err != nil {
 			continue
 		}
 		list = append(list, a)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/OSShip/mentors/internal/model"
+	"github.com/OSShip/utils/observability"
 )
 
 func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +31,7 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 
 	pending, err := h.Store.HasPendingApplication(r.Context(), userID)
 	if err != nil {
-		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		observability.RespondError(w, r, http.StatusInternalServerError, "internal", "check pending application", err, "user_id", userID)
 		return
 	}
 	if pending {
@@ -56,7 +57,7 @@ func (h *Handler) ListApplications(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := h.Store.ListApplications(r.Context(), r.URL.Query().Get("status"))
 	if err != nil {
-		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		observability.RespondError(w, r, http.StatusInternalServerError, "internal", "list mentor applications", err)
 		return
 	}
 	if list == nil {
