@@ -11,7 +11,7 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		DatabaseURL:  env("DATABASE_URL_GENERAL", "postgres://osship:osship_secret@postgres:5432/osship?sslmode=disable&search_path=general"),
+		DatabaseURL:  env("DATABASE_URL_GENERAL", ""),
 		Port:         env("PORT", "8085"),
 		KafkaBrokers: env("KAFKA_BROKERS", "kafka:9092"),
 		GithubToken:  env("GITHUB_TOKEN", ""),
